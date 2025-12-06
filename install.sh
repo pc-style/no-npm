@@ -543,26 +543,46 @@ generate_guard_script() {
         equiv_cases+="      ;;\n"
     fi
     
-    # Generate main guard functions
+    # Generate main guard functions with force flag logic
     local primary_blocked="${BLOCKED_ARRAY[0]}"
     local main_functions="$primary_blocked() {\n"
+    main_functions+="  local first_arg=\"\$1\"\n"
+    main_functions+="  \n"
+    main_functions+="  # Check if 'force' flag is present as first argument\n"
+    main_functions+="  if [[ \"\$first_arg\" == \"force\" ]]; then\n"
+    main_functions+="    shift  # Remove 'force' from arguments\n"
+    main_functions+="    \n"
+    main_functions+="    # Check if running in dumb terminal (AI agent detection)\n"
+    main_functions+="    if [[ \"\$TERM\" == \"dumb\" ]]; then\n"
+    main_functions+="      echo \"ERROR: AI agents are explicitly prohibited from using the 'force' flag.\"\n"
+    main_functions+="      echo \"This restriction exists to prevent automated systems from bypassing package manager policies.\"\n"
+    main_functions+="      return 1\n"
+    main_functions+="    fi\n"
+    main_functions+="    \n"
+    main_functions+="    # Human user confirmed with force flag, execute the command\n"
+    main_functions+="    echo \"Force flag detected. Executing: $primary_blocked \$@\"\n"
+    main_functions+="    echo \"WARNING: You are bypassing the preferred package manager ($preferred_pm).\"\n"
+    main_functions+="    command $primary_blocked \"\$@\"\n"
+    main_functions+="    return \$?\n"
+    main_functions+="  fi\n"
+    main_functions+="  \n"
+    main_functions+="  # No force flag, show warning and block execution\n"
     main_functions+="  _${preferred_pm}_warn $primary_blocked \"\$@\"\n"
-    main_functions+="  if [[ \"\$TERM\" != \"$allowed_term\" ]]; then\n"
-    main_functions+="    return 1\n"
-    main_functions+="  fi\n"
-    main_functions+="  printf 'If you are NOT an AI agent, press Enter to run the command: %s %s ' \"$primary_blocked\" \"\$*\"\n"
-    main_functions+="  read -r reply\n"
-    main_functions+="  if [[ -n \"\$reply\" ]]; then\n"
-    main_functions+="    echo \"Cancelled.\"\n"
-    main_functions+="    return 1\n"
-    main_functions+="  fi\n"
-    main_functions+="  command $primary_blocked \"\$@\"\n"
+    main_functions+="  echo \"\"\n"
+    main_functions+="  echo \"Command blocked. This system is configured to use $preferred_pm instead of $primary_blocked.\"\n"
+    main_functions+="  echo \"\"\n"
+    main_functions+="  echo \"If you are a human and really need to use $primary_blocked, run:\"\n"
+    main_functions+="  echo \"  $primary_blocked force \$@\"\n"
+    main_functions+="  echo \"\"\n"
+    main_functions+="  echo \"Note: AI agents are prohibited from using the 'force' flag.\"\n"
+    main_functions+="  echo \"      This ensures automated systems respect package manager preferences.\"\n"
+    main_functions+="  return 1\n"
     main_functions+="}\n\n"
-    
+
     # Additional guards for other blocked PMs
     local additional_guards=""
     for pm in "${BLOCKED_ARRAY[@]:1}"; do
-        additional_guards+="$pm() { guard_and_run $pm \"\$@\"; }\n"
+        additional_guards+="$pm() { _guard_with_force $pm \"\$@\"; }\n"
     done
     
     # Generate the complete script
@@ -623,13 +643,39 @@ _${preferred_pm}_warn() {
 }
 
 $(echo -e "$main_functions" | sed 's/\\n$//')
-guard_and_run() {
+_guard_with_force() {
   local cmd="\$1"; shift
-  _${preferred_pm}_warn "\$cmd" "\$@"
-  if [[ "\$TERM" != "$allowed_term" ]]; then
-    return 1
+  local first_arg="\$1"
+
+  # Check if 'force' flag is present as first argument
+  if [[ "\$first_arg" == "force" ]]; then
+    shift  # Remove 'force' from arguments
+
+    # Check if running in dumb terminal (AI agent detection)
+    if [[ "\$TERM" == "dumb" ]]; then
+      echo "ERROR: AI agents are explicitly prohibited from using the 'force' flag."
+      echo "This restriction exists to prevent automated systems from bypassing package manager policies."
+      return 1
+    fi
+
+    # Human user confirmed with force flag, execute the command
+    echo "Force flag detected. Executing: \$cmd \$@"
+    echo "WARNING: You are bypassing the preferred package manager ($preferred_pm)."
+    command "\$cmd" "\$@"
+    return \$?
   fi
-  command "\$cmd" "\$@"
+
+  # No force flag, show warning and block execution
+  _${preferred_pm}_warn "\$cmd" "\$@"
+  echo ""
+  echo "Command blocked. This system is configured to use $preferred_pm instead of \$cmd."
+  echo ""
+  echo "If you are a human and really need to use \$cmd, run:"
+  echo "  \$cmd force \$@"
+  echo ""
+  echo "Note: AI agents are prohibited from using the 'force' flag."
+  echo "      This ensures automated systems respect package manager preferences."
+  return 1
 }
 
 $(echo -e "$additional_guards" | sed 's/\\n$//')
