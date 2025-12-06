@@ -2,6 +2,10 @@
 
 blocks AI agents from using package managers you dont want them to and redirects to your preferred one
 
+**author**: [pc-style](https://github.com/pc-style)
+
+**repo**: [github.com/pc-style/no-npm](https://github.com/pc-style/no-npm)
+
 ## install
 
 three options: simple, full, or python
@@ -11,7 +15,7 @@ three options: simple, full, or python
 short and readable. does the job without extra features. 170 lines.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/username/no-npm/main/simple_install.sh > simple_install.sh
+curl -sSL https://raw.githubusercontent.com/pc-style/no-npm/main/simple_install.sh > simple_install.sh
 cat simple_install.sh  # read it first
 bash simple_install.sh --dry-run  # test it
 bash simple_install.sh  # install
@@ -24,7 +28,7 @@ backs up your config automatically. to uninstall: delete the guard file and remo
 all the safety features but in python. syntax checking, validation, automatic rollback. type-safe and easier to read than bash.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/username/no-npm/main/safe_install.py > safe_install.py
+curl -sSL https://raw.githubusercontent.com/pc-style/no-npm/main/safe_install.py > safe_install.py
 cat safe_install.py  # actually readable
 python3 safe_install.py --dry-run  # test it
 python3 safe_install.py  # install
@@ -37,7 +41,7 @@ requires python 3.6+. has casual comments for your reading pleasure.
 has rollback, verification, uninstall script generation, and other safety features. 1170 lines.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/username/no-npm/main/install.sh > install.sh
+curl -sSL https://raw.githubusercontent.com/pc-style/no-npm/main/install.sh > install.sh
 cat install.sh  # good luck reading this
 bash install.sh --verify  # test without installing
 bash install.sh --dry-run  # or test with dummy files
@@ -47,7 +51,7 @@ bash install.sh  # install
 with checksum verification:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/username/no-npm/main/install.sh > install.sh
+curl -sSL https://raw.githubusercontent.com/pc-style/no-npm/main/install.sh > install.sh
 echo "<checksum>  install.sh" | sha256sum -c
 bash install.sh
 ```
@@ -125,6 +129,10 @@ want to disable temporarily? `unset npm pnpm yarn npx`
 | npm add pkg   | bun add pkg | pnpm add pkg  | yarn add pkg|
 | npm run cmd   | bun run cmd | pnpm cmd      | yarn cmd    |
 | npx cmd       | bun x cmd   | pnpm dlx cmd  | yarn dlx cmd|
+
+## contributing
+
+issues and pull requests welcome at [github.com/pc-style/no-npm](https://github.com/pc-style/no-npm)
 
 ## license
 
