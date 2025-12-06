@@ -1,0 +1,22 @@
+# Backup files created by installer
+*.backup.*
+*.bak
+
+# macOS
+.DS_Store
+
+# Generated guard scripts (optional - users may want to commit these)
+# *_guard.sh
+
+# Temporary files
+*.tmp
+*.temp
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
