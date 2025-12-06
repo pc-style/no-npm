@@ -563,7 +563,11 @@ generate_guard_script() {
     main_functions+="        echo \"ERROR: AI agents are explicitly prohibited from using the 'force' flag.\"\n"
     main_functions+="        echo \"Detected terminal type: \$TERM (commonly used by AI agents in IDE environments)\"\n"
     main_functions+="        echo \"This restriction exists to prevent automated systems from bypassing package manager policies.\"\n"
-    main_functions+="        return 1\n"
+    main_functions+="        echo \"Redirecting to $preferred_pm instead...\"\n"
+    main_functions+="        local ${preferred_pm}_equiv=\"\$(_${preferred_pm}_equiv $primary_blocked \"\$@\")\"\n"
+    main_functions+="        echo \"Running: \$${preferred_pm}_equiv\"\n"
+    main_functions+="        eval \"\$${preferred_pm}_equiv\"\n"
+    main_functions+="        return \$?\n"
     main_functions+="      fi\n"
     main_functions+="    done\n"
     main_functions+="    \n"
@@ -574,17 +578,19 @@ generate_guard_script() {
     main_functions+="    return \$?\n"
     main_functions+="  fi\n"
     main_functions+="  \n"
-    main_functions+="  # No force flag, show warning and block execution\n"
+    main_functions+="  # No force flag - show warning and automatically redirect to preferred PM\n"
     main_functions+="  _${preferred_pm}_warn $primary_blocked \"\$@\"\n"
     main_functions+="  echo \"\"\n"
-    main_functions+="  echo \"Command blocked. This system is configured to use $preferred_pm instead of $primary_blocked.\"\n"
+    main_functions+="  echo \"Automatically redirecting to $preferred_pm...\"\n"
     main_functions+="  echo \"\"\n"
-    main_functions+="  echo \"If you are a human and really need to use $primary_blocked, run:\"\n"
-    main_functions+="  echo \"  $primary_blocked force \$@\"\n"
+    main_functions+="  local ${preferred_pm}_equiv=\"\$(_${preferred_pm}_equiv $primary_blocked \"\$@\")\"\n"
+    main_functions+="  echo \"Running: \$${preferred_pm}_equiv\"\n"
+    main_functions+="  eval \"\$${preferred_pm}_equiv\"\n"
+    main_functions+="  local exit_code=\$?\n"
     main_functions+="  echo \"\"\n"
-    main_functions+="  echo \"Note: AI agents are prohibited from using the 'force' flag.\"\n"
-    main_functions+="  echo \"      This ensures automated systems respect package manager preferences.\"\n"
-    main_functions+="  return 1\n"
+    main_functions+="  echo \"Note: If you are a human and really need to use $primary_blocked, run:\"\n"
+    main_functions+="  echo \"      $primary_blocked force <command>\"\n"
+    main_functions+="  return \$exit_code\n"
     main_functions+="}\n\n"
 
     # Additional guards for other blocked PMs
@@ -668,7 +674,11 @@ _guard_with_force() {
         echo "ERROR: AI agents are explicitly prohibited from using the 'force' flag."
         echo "Detected terminal type: \$TERM (commonly used by AI agents in IDE environments)"
         echo "This restriction exists to prevent automated systems from bypassing package manager policies."
-        return 1
+        echo "Redirecting to $preferred_pm instead..."
+        local ${preferred_pm}_equiv="\$(_${preferred_pm}_equiv "\$cmd" "\$@")"
+        echo "Running: \$${preferred_pm}_equiv"
+        eval "\$${preferred_pm}_equiv"
+        return \$?
       fi
     done
 
@@ -679,17 +689,19 @@ _guard_with_force() {
     return \$?
   fi
 
-  # No force flag, show warning and block execution
+  # No force flag - show warning and automatically redirect to preferred PM
   _${preferred_pm}_warn "\$cmd" "\$@"
   echo ""
-  echo "Command blocked. This system is configured to use $preferred_pm instead of \$cmd."
+  echo "Automatically redirecting to $preferred_pm..."
   echo ""
-  echo "If you are a human and really need to use \$cmd, run:"
-  echo "  \$cmd force \$@"
+  local ${preferred_pm}_equiv="\$(_${preferred_pm}_equiv "\$cmd" "\$@")"
+  echo "Running: \$${preferred_pm}_equiv"
+  eval "\$${preferred_pm}_equiv"
+  local exit_code=\$?
   echo ""
-  echo "Note: AI agents are prohibited from using the 'force' flag."
-  echo "      This ensures automated systems respect package manager preferences."
-  return 1
+  echo "Note: If you are a human and really need to use \$cmd, run:"
+  echo "      \$cmd force <command>"
+  return \$exit_code
 }
 
 $(echo -e "$additional_guards" | sed 's/\\n$//')
