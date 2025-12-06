@@ -11,7 +11,10 @@ NC='\033[0m'
 
 # Defaults
 DEFAULT_PM="bun"
+DEFAULT_PREFERRED_PM="bun"
 BLOCKED_PMS="npm"
+DEFAULT_BLOCKED_PMS="npm"
+DEFAULT_ALLOWED_TERM="dumb"
 DRY_RUN=false
 FORCE=false
 UNINSTALL=false
@@ -19,12 +22,19 @@ VERIFY=false
 
 # Track backups
 declare -a BACKUPS
+declare -a BACKUPS_CREATED
 FAILED=false
+INSTALL_FAILED=false
+VERIFY_MODE=false
+UNINSTALL_MODE=false
 
 print_err() { echo -e "${RED}Error: $1${NC}"; }
+print_error() { echo -e "${RED}Error: $1${NC}"; }
 print_ok() { echo -e "${GREEN}$1${NC}"; }
+print_success() { echo -e "${GREEN}$1${NC}"; }
 print_info() { echo -e "$1"; }
 print_warn() { echo -e "${YELLOW}$1${NC}"; }
+print_warning() { echo -e "${YELLOW}$1${NC}"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -59,17 +69,18 @@ require_acceptance() {
 
 # Function to display help
 show_help() {
-    echo "Usage: $0 [options]"
-    echo "Options:"
-    echo "  --dry-run     Test with temp files"
-    echo "  --force       Overwrite existing"
-    echo "  --uninstall   Remove everything"
-    echo "  --verify      Check script integrity"
-    echo "  --checksum    Verify installer"
-    echo "  --help        Show this"
-    echo
-    echo "Example: $0 --dry-run"
-    $0 --verify          # Only verify, don't install
+    cat << 'EOF'
+Usage: install.sh [options]
+Options:
+  --dry-run     Test with temp files
+  --force       Overwrite existing
+  --uninstall   Remove everything
+  --verify      Check script integrity
+  --checksum    Verify installer
+  --help        Show this
+
+Example: ./install.sh --dry-run
+         ./install.sh --verify
 
 SAFETY:
     - All modified files are backed up as: filename.bak.<timestamp>
