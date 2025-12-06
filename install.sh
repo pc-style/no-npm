@@ -14,7 +14,8 @@ DEFAULT_PM="bun"
 DEFAULT_PREFERRED_PM="bun"
 BLOCKED_PMS="npm"
 DEFAULT_BLOCKED_PMS="npm"
-DEFAULT_ALLOWED_TERM="dumb"
+# AI agents typically run from IDE terminals with these TERM values
+DEFAULT_BLOCKED_TERMS="xterm-256color,xterm-ghostty,screen-256color,tmux-256color"
 DRY_RUN=false
 FORCE=false
 UNINSTALL=false
@@ -457,7 +458,7 @@ get_effective_path() {
 generate_guard_script() {
     local preferred_pm="$1"
     local blocked_pms="$2"
-    local allowed_term="$3"
+    local blocked_terms="$3"
     
     # Convert blocked_pms to array
     IFS=',' read -ra BLOCKED_ARRAY <<< "$blocked_pms"
@@ -552,12 +553,19 @@ generate_guard_script() {
     main_functions+="  if [[ \"\$first_arg\" == \"force\" ]]; then\n"
     main_functions+="    shift  # Remove 'force' from arguments\n"
     main_functions+="    \n"
-    main_functions+="    # Check if running in dumb terminal (AI agent detection)\n"
-    main_functions+="    if [[ \"\$TERM\" == \"dumb\" ]]; then\n"
-    main_functions+="      echo \"ERROR: AI agents are explicitly prohibited from using the 'force' flag.\"\n"
-    main_functions+="      echo \"This restriction exists to prevent automated systems from bypassing package manager policies.\"\n"
-    main_functions+="      return 1\n"
-    main_functions+="    fi\n"
+    main_functions+="    # Check if TERM matches any blocked terminal (AI agent detection)\n"
+    main_functions+="    # AI agents typically run from IDE terminals like xterm-256color\n"
+    main_functions+="    local blocked_terms=\"$blocked_terms\"\n"
+    main_functions+="    IFS=',' read -ra BLOCKED_TERMS_ARRAY <<< \"\$blocked_terms\"\n"
+    main_functions+="    for blocked_term in \"\${BLOCKED_TERMS_ARRAY[@]}\"; do\n"
+    main_functions+="      blocked_term=\$(echo \"\$blocked_term\" | xargs)  # Trim whitespace\n"
+    main_functions+="      if [[ \"\$TERM\" == \"\$blocked_term\" ]]; then\n"
+    main_functions+="        echo \"ERROR: AI agents are explicitly prohibited from using the 'force' flag.\"\n"
+    main_functions+="        echo \"Detected terminal type: \$TERM (commonly used by AI agents in IDE environments)\"\n"
+    main_functions+="        echo \"This restriction exists to prevent automated systems from bypassing package manager policies.\"\n"
+    main_functions+="        return 1\n"
+    main_functions+="      fi\n"
+    main_functions+="    done\n"
     main_functions+="    \n"
     main_functions+="    # Human user confirmed with force flag, execute the command\n"
     main_functions+="    echo \"Force flag detected. Executing: $primary_blocked \$@\"\n"
@@ -651,12 +659,18 @@ _guard_with_force() {
   if [[ "\$first_arg" == "force" ]]; then
     shift  # Remove 'force' from arguments
 
-    # Check if running in dumb terminal (AI agent detection)
-    if [[ "\$TERM" == "dumb" ]]; then
-      echo "ERROR: AI agents are explicitly prohibited from using the 'force' flag."
-      echo "This restriction exists to prevent automated systems from bypassing package manager policies."
-      return 1
-    fi
+    # Check if TERM matches any blocked terminal (AI agent detection)
+    local blocked_terms="$blocked_terms"
+    IFS=',' read -ra BLOCKED_TERMS_ARRAY <<< "\$blocked_terms"
+    for blocked_term in "\${BLOCKED_TERMS_ARRAY[@]}"; do
+      blocked_term=\$(echo "\$blocked_term" | xargs)  # Trim whitespace
+      if [[ "\$TERM" == "\$blocked_term" ]]; then
+        echo "ERROR: AI agents are explicitly prohibited from using the 'force' flag."
+        echo "Detected terminal type: \$TERM (commonly used by AI agents in IDE environments)"
+        echo "This restriction exists to prevent automated systems from bypassing package manager policies."
+        return 1
+      fi
+    done
 
     # Human user confirmed with force flag, execute the command
     echo "Force flag detected. Executing: \$cmd \$@"
@@ -686,10 +700,10 @@ EOF
 install_guard_script() {
     local preferred_pm="$1"
     local blocked_pms="$2"
-    local allowed_term="$3"
+    local blocked_terms="$3"
     local real_guard_file="$HOME/.${preferred_pm}_guard.sh"
     local guard_file=$(get_effective_path "$real_guard_file")
-    
+
     if [[ "$DRY_RUN" == "true" ]]; then
         print_info "DRY RUN: Generating guard script: $guard_file"
         print_info "DRY RUN: (Would be: $real_guard_file in real install)"
@@ -698,9 +712,9 @@ install_guard_script() {
         # Backup existing guard file if it exists
         prompt_mandatory_backup "$guard_file"
     fi
-    
+
     # Generate the script
-    if ! generate_guard_script "$preferred_pm" "$blocked_pms" "$allowed_term" > "$guard_file"; then
+    if ! generate_guard_script "$preferred_pm" "$blocked_pms" "$blocked_terms" > "$guard_file"; then
         print_error "Failed to generate guard script!"
         INSTALL_FAILED=true
         return 1
@@ -977,10 +991,12 @@ interactive_install() {
         fi
     done
     
-    # Get allowed terminal
-    local allowed_term
-    read -p "Which terminal emulator is allowed to bypass? [$DEFAULT_ALLOWED_TERM]: " allowed_term
-    allowed_term="${allowed_term:-$DEFAULT_ALLOWED_TERM}"
+    # Get blocked terminal types (for AI agent detection)
+    local blocked_terms
+    echo
+    print_info "AI agents typically run from IDE terminals (VS Code, Windsurf, etc.)"
+    read -p "Which TERM values should be blocked from using 'force'? (comma-separated) [$DEFAULT_BLOCKED_TERMS]: " blocked_terms
+    blocked_terms="${blocked_terms:-$DEFAULT_BLOCKED_TERMS}"
     
     # Check if guard already exists
     if is_guard_installed "$preferred_pm" && [[ "$FORCE" == "false" ]]; then
@@ -998,7 +1014,7 @@ interactive_install() {
     print_info "Installation Summary:"
     echo "  Preferred package manager: $preferred_pm"
     echo "  Blocked package managers: $blocked_pms"
-    echo "  Allowed terminal: $allowed_term"
+    echo "  Blocked terminal types (AI detection): $blocked_terms"
     if [[ "$DRY_RUN" == "true" ]]; then
         echo "  Shell config: $config_file (TEST COPY)"
         echo "  Real target: $real_config_file"
@@ -1026,7 +1042,7 @@ interactive_install() {
     fi
     
     # Generate and install guard script (with error handling)
-    if ! install_guard_script "$preferred_pm" "$blocked_pms" "$allowed_term"; then
+    if ! install_guard_script "$preferred_pm" "$blocked_pms" "$blocked_terms"; then
         print_error "Failed to install guard script!"
         INSTALL_FAILED=true
         exit 1
@@ -1199,7 +1215,7 @@ if [[ "$VERIFY_MODE" == "true" ]]; then
     # Generate a test guard script to temp and verify it
     print_info "Generating test guard script for verification..."
     temp_guard=$(mktemp)
-    generate_guard_script "bun" "npm" "${TERM:-xterm}" > "$temp_guard"
+    generate_guard_script "bun" "npm" "$DEFAULT_BLOCKED_TERMS" > "$temp_guard"
     
     if verify_guard_script "$temp_guard" "bun"; then
         print_success "All verifications passed!"
